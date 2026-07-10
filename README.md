@@ -7,7 +7,7 @@
 - ReAct Agent：支持模型推理和工具调用。
 - RAG 知识库：支持 txt、pdf、docx 文档上传、切片、向量入库和检索问答。
 - 会话管理：保存会话和消息，支持 conversation_id 续聊。
-- 多租户上下文：通过请求头区分 user、tenant 和 knowledge base。
+- 多租户上下文：通过请求头区分 user、tenant 和 knowledge base，实现知识库与历史会话隔离。
 - 工具治理：工具注册、权限校验、参数校验、重试、fallback、日志和审计。
 - 安全能力：API Key、权限点、Prompt Injection 风险记录、上传文件校验。
 - 可观测性：结构化日志、监控概览、工具审计和 Prometheus 指标。
@@ -45,6 +45,93 @@ utils/               通用工具
 ```
 
 运行时数据目录如 `data/`、`chroma_db/`、`logs/` 不建议提交到 Git。
+
+## 设计要点
+
+### 知识库与历史会话隔离
+
+项目通过 `RequestContext` 贯穿一次请求的完整生命周期。每个请求都会携带：
+
+```text
+request_id
+user_id
+tenant_id
+conversation_id
+knowledge_base_id
+roles
+permissions
+```
+
+其中 `tenant_id`、`user_id`、`conversation_id` 用于隔离历史会话和消息；`tenant_id`、`knowledge_base_id` 用于隔离知识库、文档、文档版本、切片和向量检索结果。
+
+一次聊天请求不会直接读取全局历史，而是按当前用户、租户和会话查找上下文。RAG 检索也不会直接查询整个向量库，而是带上 metadata filter，例如：
+
+```text
+tenant_id = 当前租户
+knowledge_base_id = 当前知识库
+status = active
+```
+
+这样可以避免不同用户、不同租户、不同知识库之间的数据串用。对应的核心文件包括：
+
+```text
+app/schemas/context.py
+app/core/security.py
+app/core/request_context.py
+app/services/conversation_service.py
+app/services/agent_service.py
+rag/rag_service.py
+rag/vector_store.py
+```
+
+### 工具注册、权限与审计
+
+Agent 可调用的工具不是散落在代码中的任意函数，而是集中注册和治理。工具系统主要由三部分组成：
+
+```text
+agent/tools/agent_tools.py      定义工具函数
+agent/tools/registry.py         注册工具元信息和治理规则
+agent/tools/middleware.py       在工具调用前后执行权限、校验、审计和兜底
+```
+
+`TOOL_REGISTRY` 会记录每个工具的能力边界，例如：
+
+```text
+工具名
+描述
+入参 schema
+是否启用
+所需权限点
+超时时间
+重试策略
+敏感字段
+失败 fallback
+是否有副作用
+是否要求幂等
+是否写入审计
+```
+
+工具调用前，`monitor_tool` 中间件会读取当前 `RequestContext`，检查用户是否拥有对应权限，例如：
+
+```text
+tool:rag_summarize
+tool:get_weather
+tool:fetch_external_data
+tool:fill_context_for_report
+```
+
+工具调用后，系统会记录日志、Prometheus 指标，并在需要时写入 `tool_calls` 审计表。这样可以追踪：
+
+```text
+谁调用了工具
+调用了哪个工具
+参数摘要是什么
+执行是否成功
+耗时多久
+失败原因是什么
+```
+
+这套设计让 Agent 的工具调用具备可控、可观测、可追责的工程治理能力。
 
 ## 快速开始
 
@@ -215,7 +302,9 @@ curl "http://127.0.0.1:8000/api/monitoring/overview" ^
 ```text
 用户请求
  -> app/api/chat.py
+ -> 解析 RequestContext，确认用户、租户、会话、知识库和权限
  -> app/services/agent_service.py
+ -> 按 user_id / tenant_id / conversation_id 读取历史会话
  -> agent/react_agent.py
  -> 大模型 / 工具 / RAG
  -> 保存会话和审计记录
@@ -228,10 +317,24 @@ RAG 查询链路：
 Agent 调用 rag_summarize 工具
  -> RagSummarizeService
  -> VectorStoreService
- -> Chroma 检索
+ -> 按 tenant_id / knowledge_base_id / status 过滤 Chroma 检索
  -> 拼接上下文
  -> 调用模型生成答案
  -> 返回引用来源
+```
+
+工具调用治理链路：
+
+```text
+Agent 决定调用工具
+ -> monitor_tool 中间件接管
+ -> 查询 TOOL_REGISTRY
+ -> 检查工具是否启用
+ -> 检查当前用户是否拥有工具权限
+ -> 校验参数并脱敏敏感字段
+ -> 执行工具、重试或 fallback
+ -> 记录日志、指标和 tool_calls 审计
+ -> 工具结果返回给 Agent
 ```
 
 ## Git 忽略建议
@@ -270,4 +373,5 @@ config/api_keys.yml
 - `docs/phase4_tool_registry_design.md`：工具注册和治理设计。
 - `docs/phase5_observability_verification.md`：可观测性验证。
 - `docs/phase6_security_verification.md`：安全能力验证。
+
 
