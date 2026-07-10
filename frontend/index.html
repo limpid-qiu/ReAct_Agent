@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ReAct Agent Console</title>
+    <link rel="stylesheet" href="/ui/styles.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">R</span>
+        <div>
+          <h1>ReAct Agent</h1>
+          <p>Console</p>
+        </div>
+      </div>
+
+      <label>
+        User ID
+        <input id="userId" value="demo_user" autocomplete="off" />
+      </label>
+      <label>
+        Tenant ID
+        <input id="tenantId" value="demo_tenant" autocomplete="off" />
+      </label>
+      <label>
+        API Key
+        <input id="apiKey" type="password" placeholder="可选" autocomplete="off" />
+      </label>
+
+      <nav class="tabs" aria-label="Views">
+        <button class="active" data-view="chat">Chat</button>
+        <button data-view="knowledge">Knowledge</button>
+        <button data-view="conversations">History</button>
+        <button data-view="monitoring">Monitor</button>
+        <button data-view="logs">Logs</button>
+      </nav>
+    </aside>
+
+    <main>
+      <section id="chat" class="view active">
+        <header class="toolbar">
+          <div>
+            <h2>Chat</h2>
+            <p id="chatMeta">新会话</p>
+          </div>
+          <button id="newConversation">New</button>
+        </header>
+        <div id="messages" class="messages"></div>
+        <form id="chatForm" class="composer">
+          <textarea id="query" rows="3" placeholder="输入问题，例如：扫地机器人怎么保养？"></textarea>
+          <button type="submit">Send</button>
+        </form>
+      </section>
+
+      <section id="conversations" class="view">
+        <header class="toolbar">
+          <div>
+            <h2>History</h2>
+            <p>当前用户的会话和消息</p>
+          </div>
+          <button id="refreshConversations">Refresh</button>
+        </header>
+        <div class="split">
+          <div id="conversationList" class="list"></div>
+          <div id="conversationDetail" class="detail"></div>
+        </div>
+      </section>
+
+
+      <section id="knowledge" class="view">
+        <header class="toolbar">
+          <div>
+            <h2>Knowledge</h2>
+            <p>上传资料、查看入库任务、测试检索</p>
+          </div>
+          <button id="refreshKnowledge">Refresh</button>
+        </header>
+
+        <div class="knowledge-grid">
+          <div class="panel">
+            <h3>Context</h3>
+            <label class="field">
+              Knowledge Base ID
+              <input id="knowledgeBaseId" value="default" autocomplete="off" />
+            </label>
+            <form id="createBaseForm" class="stack-form">
+              <label class="field">
+                New Base Name
+                <input id="baseName" placeholder="例如：售后知识库" autocomplete="off" />
+              </label>
+              <label class="field">
+                Description
+                <input id="baseDescription" placeholder="可选" autocomplete="off" />
+              </label>
+              <button type="submit">Create Base</button>
+            </form>
+          </div>
+
+          <div class="panel">
+            <h3>Upload</h3>
+            <form id="uploadForm" class="stack-form">
+              <label class="field">
+                File
+                <input id="knowledgeFile" type="file" accept=".txt,.pdf,.docx" />
+              </label>
+              <button type="submit">Upload & Ingest</button>
+            </form>
+            <p id="uploadResult" class="muted"></p>
+          </div>
+        </div>
+
+        <div class="knowledge-grid">
+          <div class="panel">
+            <h3>Bases</h3>
+            <div id="baseList" class="compact-list"></div>
+          </div>
+          <div class="panel">
+            <h3>Tasks</h3>
+            <div id="taskList" class="compact-list"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Documents</h3>
+          <div id="documentList" class="table"></div>
+        </div>
+
+        <div class="panel">
+          <h3>Search Test</h3>
+          <form id="knowledgeSearchForm" class="composer compact-composer">
+            <textarea id="knowledgeQuery" rows="2" placeholder="输入一个只从知识库回答的问题"></textarea>
+            <button type="submit">Search</button>
+          </form>
+          <div id="knowledgeSearchResult" class="search-result"></div>
+        </div>
+      </section>
+      <section id="monitoring" class="view">
+        <header class="toolbar">
+          <div>
+            <h2>Monitor</h2>
+            <p>服务健康、业务统计和 Prometheus 摘要</p>
+          </div>
+          <button id="refreshMonitor">Refresh</button>
+        </header>
+        <div id="health" class="status-line"></div>
+        <div id="statGrid" class="stat-grid"></div>
+        <div class="panel">
+          <h3>Recent Tool Calls</h3>
+          <div id="toolCalls" class="table"></div>
+        </div>
+        <div class="panel">
+          <h3>Metrics</h3>
+          <pre id="metrics"></pre>
+        </div>
+      </section>
+
+      <section id="logs" class="view">
+        <header class="toolbar">
+          <div>
+            <h2>Logs</h2>
+            <p>logs/agent.log 最近记录</p>
+          </div>
+          <button id="refreshLogs">Refresh</button>
+        </header>
+        <pre id="logLines" class="log-lines"></pre>
+      </section>
+    </main>
+
+    <div id="toast" role="status"></div>
+    <script src="/ui/app.js"></script>
+  </body>
+</html>
+
